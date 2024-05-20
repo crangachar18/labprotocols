@@ -1,0 +1,884 @@
+import tkinter as tk
+import tkinter.filedialog as fd
+from tkinter import ttk
+from tkinter import simpledialog, scrolledtext
+from PIL import Image, ImageTk
+import datetime
+
+
+class LabProtocolApp:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Lab Protocols App")
+        self.root.geometry("400x300")
+
+
+
+        original_image = Image.open('image path') # provide a path to an image 
+        resized_image = original_image.resize((80, 80), Image.Resampling.LANCZOS)
+        self.icon_image = ImageTk.PhotoImage(resized_image)
+
+        ihc_button = tk.Button(self.root, image=self.icon_image, command=self.start_ihc_protocol)
+        ihc_button.image = self.icon_image
+        ihc_button.place(x=20, y=20)
+
+        original_image2 = Image.open('image path')  # provide a path to a different image
+        resized_image2 = original_image2.resize((80, 80), Image.Resampling.LANCZOS)
+        self.icon_image2 = ImageTk.PhotoImage(resized_image2)
+
+        day2_button = tk.Button(self.root, image=self.icon_image2, command=self.start_day2_protocol)
+        day2_button.image = self.icon_image2  # Keep a reference
+        day2_button.place(x=120, y=20)
+
+        original_image3 = Image.open('image path')  # provide a path to a 3rd image
+        resized_image3 = original_image3.resize((80, 80), Image.Resampling.LANCZOS)
+        self.icon_image3 = ImageTk.PhotoImage(resized_image3)
+
+        day3_button = tk.Button(self.root, image=self.icon_image3, command=self.start_day3_protocol)
+        day3_button.image = self.icon_image3  
+        day3_button.place(x=220, y=20)
+
+    def start_ihc_protocol(self):
+        ihc_window = tk.Toplevel(self.root)
+        screen_width = self.root.winfo_screenwidth()
+        log_window = tk.Toplevel(self.root)  # Create a new window for logs
+        log_window.title("Action Log for Primaries")
+        log_window.geometry(f"400x300+{screen_width-400}+0")
+        self.log_text = scrolledtext.ScrolledText(log_window, wrap=tk.WORD)  # Text widget for logs
+        self.log_text.pack(expand=True, fill='both')
+
+        ihc_app = IHCProtocolApp(ihc_window, self.log_text)
+        ihc_window.title("IHC Protocol")
+        ihc_window.geometry(f"400x300+{screen_width-800}+0")
+        ihc_app.initial_input()
+    def start_day2_protocol(self):
+        sec_window = tk.Toplevel(self.root)
+        screen_width = self.root.winfo_screenwidth()
+        sec_window.title("Secondaries Protocol")  # Set the title here
+        sec_window.geometry(f"400x300+{screen_width - 800}+0")  # Set the geometry here
+
+        log_window = tk.Toplevel(self.root)
+        log_window.title("Action Log for Secondaries")
+        log_window.geometry(f"400x400+{screen_width - 400}+0")
+        self.log_text = scrolledtext.ScrolledText(log_window, wrap=tk.WORD)
+        self.log_text.pack(expand=True, fill='both')
+
+        sec_app = Secondary_App(sec_window, self.log_text)
+        sec_app.initial_input()
+    def start_day3_protocol(self):
+        tri_window = tk.Toplevel(self.root)
+        screen_width = self.root.winfo_screenwidth()
+        tri_window.title("Final Steps for IHC Experiment")
+        tri_window.geometry(f"400x300+{screen_width-800}+0")
+
+        log_window = tk.Toplevel(self.root)
+        log_window.title("Action Log")
+        log_window.geometry(f"400x400+{screen_width - 400}+0")
+        self.log_text = scrolledtext.ScrolledText(log_window, wrap=tk.WORD)
+        self.log_text.pack(expand=True, fill='both')
+
+        tri_app = Final_Day_Protocol(tri_window, self.log_text)
+        tri_app.set_initial_parameters()
+
+class IHCProtocolApp:
+    def __init__(self, root, log_text):
+        self.root = root
+        self.log_text = log_text
+        self.experiment_name = ""
+        self.blocking_agent = ""
+        self.num_groups = 0
+        self.num_slides_per_group = 0
+        self.total_slides = 0
+        self.current_step = [0]
+        self.timer_label = None
+        self.timer_id = None
+        self.message = None
+        self.continue_button = None
+        self.start_button = None
+        self.done_button = None
+        self.treatment_groups = []
+        self.current_treatment_group = 0
+        self.checklist_completed_count = 0
+        self.checklist_total_count = 0
+
+    def remove_done_button(self):
+        if self.done_button:
+            self.done_button.destroy()
+            self.done_button = None
+
+    def update_timer(self, count):
+        minutes, seconds = divmod(count, 60)
+        self.timer_label.config(text="{:02d}:{:02d}".format(minutes, seconds))
+
+        if count < 30:
+            self.timer_label.config(fg='red')
+        else:
+            self.timer_label.config(fg='black')
+
+        if count > 0:
+            self.timer_id = self.root.after(1000, self.update_timer, count - 1)
+        else:
+            pass
+
+    def remove_start_button(self):
+        if self.start_button:
+            self.start_button.destroy()
+            self.start_button = None
+
+    def log_action(self, action):
+        current_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        self.log_text.insert(tk.END, f"{current_time}: {action}\n")
+        self.log_text.yview(tk.END)  # Auto-scroll to the bottom
+
+    def initial_input(self):
+        self.experiment_name = simpledialog.askstring("Input", "Enter Experiment Name:")
+        if self.experiment_name is None:
+            return
+
+        self.num_groups = simpledialog.askinteger("Input", "Enter Number of Treatment Groups:")
+        if self.num_groups is None:
+            return
+
+
+        self.total_slides = 0
+        self.treatment_groups = []
+        slides_info = ""
+        for group in range(1, self.num_groups + 1):
+            num_slides = simpledialog.askinteger(f"Input for Treatment Group {group}",
+                                                 f"Enter Number of Slides in Group {group}:")
+            if num_slides is None:
+                return
+            self.treatment_groups.append(num_slides)
+
+            self.num_slides_per_group = num_slides
+            self.total_slides += num_slides
+            slides_info += f"Group {group}: {num_slides} slides; "
+
+        self.blocking_agent = simpledialog.askstring("Input", "What organism serum for block?")
+        if self.blocking_agent is None:
+            return
+        pbtn_volume = self.total_slides * 850
+
+        self.message = tk.Label(self.root, text=f"Experiment Name: {self.experiment_name}\nTotal Slides: {self.total_slides}\nPBTN Volume: {pbtn_volume} uL\n Blocking agent : {self.blocking_agent.capitalize()} serum")
+        self.message.pack()
+
+        self.start_button = tk.Button(self.root, text="Start Protocol", command=self.ihc_protocol)
+        self.start_button.pack()
+        log_message = f"IHC Settings Initiated - Experiment: {self.experiment_name}, Treatment Groups: {self.num_groups}, Slides Info: {slides_info.rstrip('; ')}, Blocking Agent: {self.blocking_agent.capitalize()} serum"
+        self.log_action(log_message)
+
+    def reset_timer_and_progress(self):
+        self.log_action(f"Wash #{self.current_step[0]} complete")
+        if self.current_step[0] < 3:
+            self.current_step[0] += 1
+            self.message.config(text="Wash #{}".format(self.current_step[0]))
+
+            if self.timer_label is not None:
+                self.timer_label.destroy()
+
+            if self.timer_id is not None:
+                self.root.after_cancel(self.timer_id)
+
+            self.timer_label = tk.Label(self.root, font=('Helvetica', 18))
+            self.timer_label.pack()
+
+            self.update_timer(300)
+        else:
+            self.message.config(text="Congratulations! Add 500uL PBTN per slide.")
+            if self.continue_button:
+                self.continue_button.destroy()
+            self.continue_button = tk.Button(self.root, text="PBT-N added", command=self.continue_to_pbtn)
+            self.continue_button.pack()
+            self.remove_done_button()
+            self.log_action(f"Washes complete. PBTN block prompted")
+
+    def ihc_protocol(self):
+        self.remove_start_button()
+        self.log_action("IHC protocol initiated")
+
+        if not self.done_button:
+            self.done_button = tk.Button(self.root, text="Done", command=self.reset_timer_and_progress)
+            self.done_button.pack()
+
+        if self.current_step[0] == 0:
+            self.current_step[0] = 1
+            self.message.config(text="Wash #1")
+            self.message.pack()
+
+            if self.timer_label is not None:
+                self.timer_label.destroy()
+
+            self.timer_label = tk.Label(self.root, font=('Helvetica', 18))
+            self.timer_label.pack()
+
+            self.update_timer(300)
+
+        elif self.current_step[0] == 1:
+            self.current_step[0] = 2
+            self.message.config(text="You are now in the PBT-N step.")
+            if self.continue_button:
+                self.continue_button.destroy()
+
+        elif self.current_step[0] == 2:
+            self.message.config(text="Protocol is complete.")
+
+    def continue_to_pbtn(self):
+        new_window = tk.Toplevel(self.root)
+        new_window.title("PBTN Step")
+        new_window.geometry("600x150")
+
+        message = tk.Label(new_window, text="Select primaries from menu at the bottom right of the screen")
+        message.pack()
+
+        self.timer_label = tk.Label(new_window, font=('Helvetica', 18))
+        self.timer_label.pack()
+
+        if self.timer_id is not None:
+            self.root.after_cancel(self.timer_id)
+
+        self.update_timer(3600)
+        self.log_action("PBT-N Added")
+        checkbox_window = tk.Toplevel(self.root)
+        checkbox_window.title("Select Primary Antibodies and Calculate Master Mix")
+        self.position_window_bottom_right(checkbox_window, 500, 400)  # Adjust size as needed
+
+        canvas = tk.Canvas(checkbox_window)
+        scrollbar = tk.Scrollbar(checkbox_window, orient="vertical", command=canvas.yview)
+        canvas.configure(yscrollcommand=scrollbar.set)
+
+        scrollbar.pack(side="right", fill="y")
+        canvas.pack(side="left", fill="both", expand=True)
+
+        checkbox_frame = tk.Frame(canvas)
+        canvas.create_window((0, 0), window=checkbox_frame, anchor="nw")
+
+        self.antibody_vars = {}
+        self.populate_checkboxes(checkbox_frame)
+        checkbox_frame.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+        calculate_btn = tk.Button(checkbox_window, text="Calculate Master Mix", command=self.calculate_master_mix)
+        calculate_btn.pack()
+        done_button = tk.Button(new_window, text="Done", command=self.on_pbtn_done)
+        done_button.pack()
+
+    def populate_checkboxes(self, frame):
+        self.antibodies = {
+            'PCNA mouse (Igg2a)': '1/100',
+            'Otx2 Goat AF1979': '1/500',
+            'PHH3 rabbit': '1/500',
+            'Olig2 rabbit': '1/500',
+            'Pax6-s mouse (Igg1)': '1/20',
+            'Otx1+2 rabbit': '1/500',
+            'LHX2 goat': '1/400',
+            'OC1 mouse G10 (Igg1)': '1/50',
+            'Zpr1 mouse': '1/1000',
+            'Biotin PNA' : '1/100',
+            'Zpr3 mouse' : '1/1000',
+            'Au1 mouse (Igg2a)': '1/2000'
+        }
+        for antibody, dilution in self.antibodies.items():
+            var = tk.IntVar()
+            chk = tk.Checkbutton(frame, text=f"{antibody} ({dilution})", variable=var)
+            chk.pack(anchor='w')
+            self.antibody_vars[antibody] = var
+
+    def on_pbtn_done(self):
+        if self.current_treatment_group >= len(self.treatment_groups):
+            self.show_final_message()
+            return
+        num_groups = self.num_groups
+        num_slides = self.treatment_groups[self.current_treatment_group]
+        tk.messagebox.showinfo("Block Complete",
+                               f"Block complete. Add 300uL Master mix {self.current_treatment_group + 1} to each slide in treatment group {self.current_treatment_group + 1}")
+        self.current_treatment_group += 1
+
+    def save_action_log(self):
+        file_path = fd.asksaveasfilename(defaultextension=".txt",
+                                         filetypes=[("Text files", "*.txt"), ("All files", "*.*")])
+        if file_path:
+            with open(file_path, "w") as file:
+                log_content = self.log_text.get("1.0", tk.END)
+                file.write(log_content)
+    def show_final_message(self):
+        tk.messagebox.showinfo("Incubation Step", "Place your primary incubation in 4 degrees Celsius for 24 hours.")
+        self.log_action("Incubation Step Initiated")
+
+        # Follow-up confirmation dialog
+        response = tk.messagebox.askyesno("Confirmation", "Did you place the slides at 4 degrees?")
+        if response:
+            self.log_action("Confirmed: Slides placed at 4 degrees")
+        else:
+            self.log_action("Not Confirmed: Slides not placed at 4 degrees")
+        self.save_action_log()
+        root.destroy()
+
+    def calculate_master_mix(self):
+        if self.current_treatment_group >= len(self.treatment_groups):
+            tk.messagebox.showinfo("Complete", "All treatment groups have been processed.")
+            return
+
+        selected_antibodies = [a for a, v in self.antibody_vars.items() if v.get() == 1]
+        if not selected_antibodies:
+            tk.messagebox.showinfo("No Selection", "Please select at least one antibody.")
+            return
+
+        num_slides = self.treatment_groups[self.current_treatment_group]
+        total_volume = 325 * num_slides  # Total master mix volume
+        total_antibody_volumes = {}
+
+        for antibody in selected_antibodies:
+            dilution_fraction = eval(self.antibodies[antibody].replace('/', '.0/'))
+            antibody_volume = total_volume * dilution_fraction
+            total_antibody_volumes[antibody] = antibody_volume
+
+        pbtn_volume = total_volume - sum(total_antibody_volumes.values())
+
+        # Create a new window for the checklist
+        checklist_window = tk.Toplevel(self.root)
+        checklist_window.title(f"Master Mix Checklist for Treatment Group {self.current_treatment_group + 1}")
+
+        # Add checklist items for antibodies and PBTN with their volumes
+        self.add_checklist_items(checklist_window, total_antibody_volumes, pbtn_volume)
+
+        self.current_treatment_group += 1
+
+    def add_checklist_items(self, window, antibody_volumes, pbtn_volume):
+        for antibody, volume in antibody_volumes.items():
+            self.add_checklist_item(window, f"{antibody}: {volume:.2f} uL")
+
+        self.add_checklist_item(window, f"PBTN: {pbtn_volume:.2f} uL")
+        self.checklist_total_count = len(antibody_volumes) + 1  # +1 for PBTN
+        self.checklist_completed_count = 0
+
+    def add_checklist_item(self, window, text):
+        frame = tk.Frame(window)
+        frame.pack(fill='x', padx=5, pady=5)
+
+        label = tk.Label(frame, text=text)
+        label.pack(side='left')
+
+        done_button = tk.Button(frame, text="Done", command=lambda t=text: self.mark_done(t))
+        done_button.pack(side='right')
+
+    def mark_done(self, text):
+        self.log_action(f"Added: {text}")
+        self.checklist_completed_count += 1
+
+        if self.checklist_completed_count == self.checklist_total_count:
+            if self.current_treatment_group == len(self.treatment_groups):
+                # Last treatment group
+                tk.messagebox.showinfo("Master Mix Complete", "All master mixes complete and logged in Action Log. Wait for block to finish and add master mixes as instructed.")
+                self.log_action(f"Master mix {self.current_treatment_group} complete")
+                self.log_action("Master Mix Construction Completed")
+            else:
+                # Not the last treatment group
+                tk.messagebox.showinfo("Master Mix Complete", f"Master mix {self.current_treatment_group} complete, select next treatment group antibodies.")
+                self.log_action(f"Master mix {self.current_treatment_group} complete")
+            # Reset the count for the next treatment group
+            self.checklist_completed_count = 0
+            self.checklist_total_count = 0
+            # Optionally, close the checklist window or prepare for the next group
+
+    def position_window_bottom_right(self, window, width, height):
+        screen_width = self.root.winfo_screenwidth()
+        screen_height = self.root.winfo_screenheight()
+        x = screen_width - width
+        y = screen_height - height
+        window.geometry(f'{width}x{height}+{x}+{y}')
+class Secondary_App:
+    def __init__(self, root, log_text):
+        self.root = root
+        self.log_text = log_text
+        self.experiment_name = ""
+        self.blocking_agent = ""
+        self.num_groups = 0
+        self.num_slides_per_group = 0
+        self.total_slides = 0
+        self.current_step = [0]
+        self.timer_label = None
+        self.timer_id = None
+        self.message = None
+        self.continue_button = None
+        self.start_button = None
+        self.done_button = None
+        self.treatment_groups = []
+        self.current_treatment_group = 0
+        self.checklist_completed_count = 0
+        self.checklist_total_count = 0
+        self.window = tk.Toplevel(root)
+    def remove_done_button(self):
+        if self.done_button:
+            self.done_button.destroy()
+            self.done_button = None
+
+    def update_timer(self, count):
+        minutes, seconds = divmod(count, 60)
+        self.timer_label.config(text="{:02d}:{:02d}".format(minutes, seconds))
+
+        if count < 30:
+            self.timer_label.config(fg='red')
+        else:
+            self.timer_label.config(fg='black')
+
+        if count > 0:
+            self.timer_id = self.root.after(1000, self.update_timer, count - 1)
+        else:
+
+            pass
+
+    def remove_start_button(self):
+        if self.start_button:
+            self.start_button.destroy()
+            self.start_button = None
+
+    def log_action(self, action):
+        current_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        self.log_text.insert(tk.END, f"{current_time}: {action}\n")
+        self.log_text.yview(tk.END)  # scroll to bottom
+
+    def initial_input(self):
+        self.experiment_name = simpledialog.askstring("Input", "Enter Experiment Name:")
+        if self.experiment_name is None:
+            return
+
+        self.num_groups = simpledialog.askinteger("Input", "Enter Number of Treatment Groups:")
+        if self.num_groups is None:
+            return
+
+
+        self.total_slides = 0
+        self.treatment_groups = []
+        slides_info = ""
+        for group in range(1, self.num_groups + 1):
+            num_slides = simpledialog.askinteger(f"Input for Treatment Group {group}",
+                                                 f"Enter Number of Slides in Group {group}:")
+            if num_slides is None:
+                return
+            self.treatment_groups.append(num_slides)
+
+            self.num_slides_per_group = num_slides
+            self.total_slides += num_slides
+            slides_info += f"Group {group}: {num_slides} slide(s); "
+
+        self.blocking_agent = simpledialog.askstring("Input", "What organism serum for block?")
+        if self.blocking_agent is None:
+            return
+        pbtn_volume = self.total_slides * 550
+
+        self.message = tk.Label(self.root,
+                                text=f"Experiment Name: {self.experiment_name}\nTotal Slides: {self.total_slides}\nPBTN Volume: {pbtn_volume} uL\n {self.blocking_agent} serum: {pbtn_volume * 0.05} uL, PBT: {pbtn_volume * 0.95} uL\n Blocking agent : {self.blocking_agent} serum")
+        self.message.pack()
+
+        self.start_button = tk.Button(self.root, text="Start Protocol", command=self.sec_protocol)
+        self.start_button.pack()
+        log_message = f"IHC Settings Initiated - Experiment: {self.experiment_name}, Treatment Groups: {self.num_groups}, Slides Info: {slides_info.rstrip('; ')}, Blocking Agent: {self.blocking_agent} serum, Total PBT-N volume: {pbtn_volume} uL : {pbtn_volume * 0.05} uL serum, {pbtn_volume * 0.95} uL PBT"
+        self.log_action(log_message)
+    def sec_protocol(self):
+        self.remove_start_button()
+        self.log_action("Secondary protocol initiated")
+
+        if not self.done_button:
+            self.done_button = tk.Button(self.root, text="Done", command=self.reset_timer_and_progress)
+            self.done_button.pack()
+
+        if self.current_step[0] == 0:
+            self.current_step[0] = 1
+            self.message.config(text="Wash #1")
+            self.message.pack()
+
+            if self.timer_label is not None:
+                self.timer_label.destroy()
+
+            self.timer_label = tk.Label(self.root, font=('Helvetica', 18))
+            self.timer_label.pack()
+
+            self.update_timer(900)
+
+        elif self.current_step[0] == 1:
+            self.current_step[0] = 2
+            self.message.config(text="You are now in the PBT-N step.")
+            if self.continue_button:
+                self.continue_button.destroy()
+
+        elif self.current_step[0] == 2:
+            self.message.config(text="Protocol is complete.")
+    def reset_timer_and_progress(self):
+        self.log_action(f"Wash #{self.current_step[0]} complete")
+        if self.current_step[0] < 3:
+            self.current_step[0] += 1
+            self.message.config(text="Wash #{}".format(self.current_step[0]))
+
+            if self.timer_label is not None:
+                self.timer_label.destroy()
+
+            if self.timer_id is not None:
+                self.root.after_cancel(self.timer_id)
+
+            self.timer_label = tk.Label(self.root, font=('Helvetica', 18))
+            self.timer_label.pack()
+
+            self.update_timer(900)
+        else:
+            self.message.config(text="Congratulations! Add 500uL PBTN per slide.")
+            if self.continue_button:
+                self.continue_button.destroy()
+            self.continue_button = tk.Button(self.root, text="PBT-N added", command=self.continue_to_pbtn)
+            self.continue_button.pack()
+            self.remove_done_button()
+            self.log_action(f"Washes complete. PBTN block prompted")
+    def continue_to_pbtn(self):
+
+        self.root.withdraw()  # Hide the main window
+        self.window.withdraw()
+        new_window = tk.Toplevel(self.root)
+        new_window.title("PBTN Blocking Now")
+        new_window.geometry("600x150")
+
+        message = tk.Label(new_window, text="Select secondaries from menu at the bottom right of the screen")
+        message.pack()
+
+        self.timer_label = tk.Label(new_window, font=('Helvetica', 18))
+        self.timer_label.pack()
+
+        if self.timer_id is not None:
+            self.root.after_cancel(self.timer_id)
+
+        self.update_timer(3600)
+        self.log_action("PBT-N Added")
+        checkbox_window = tk.Toplevel(self.root)
+        checkbox_window.title(f"Select {self.blocking_agent} Secondaries Only and Calculate Master Mix")
+        self.position_window_bottom_right(checkbox_window, 500, 400)  # Adjust size as needed
+
+        canvas = tk.Canvas(checkbox_window)
+        scrollbar = tk.Scrollbar(checkbox_window, orient="vertical", command=canvas.yview)
+        canvas.configure(yscrollcommand=scrollbar.set)
+
+        scrollbar.pack(side="right", fill="y")
+        canvas.pack(side="left", fill="both", expand=True)
+
+
+        checkbox_frame = tk.Frame(canvas)
+        canvas.create_window((0, 0), window=checkbox_frame, anchor="nw")
+
+        self.antibody_vars = {}
+        self.populate_checkboxes(checkbox_frame)
+        checkbox_frame.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+        calculate_btn = tk.Button(checkbox_window, text="Calculate Master Mix", command=self.calculate_master_mix)
+        calculate_btn.pack()
+        done_button = tk.Button(new_window, text="Done", command=self.on_pbtn_done)
+        done_button.pack()
+    def populate_checkboxes(self, frame):
+        self.antibodies = {
+            'Donkey anti mouse A488': '1/400',
+            'Donkey anti Goat A488': '1/400',
+            'Donkey anti rabbit A488': '1/400',
+            'Donkey anti mouse Cy3': '1/250',
+            'Donkey anti Goat Cy3': '1/250',
+            'Donkey anti rabbit Cy3': '1/250',
+            'Donkey anti mouse A647': '1/400',
+            'Donkey anti Goat A647': '1/400',
+            'Donkey anti rabbit A647': '1/400',
+            'Goat anti mouse Igg1 A488': '1/400',
+            'Goat anti mouse Igg2a A488': '1/400',
+            'Goat anti mouse Igg2b A488': '1/400',
+            'Goat anti mouse broad A488': '1/400',
+            'Goat anti rabbit A488': '1/400',
+            'Goat anti mouse Igg1 Cy3': '1/250',
+            'Goat anti mouse Igg2a Cy3': '1/250',
+            'Goat anti mouse Igg2b Cy3': '1/250',
+            'Goat anti mouse broad Cy3': '1/250',
+            'Goat anti rabbit Cy3': '1/250',
+            'Goat anti mouse Igg1 A647': '1/400',
+            'Goat anti mouse Igg2a A647': '1/400',
+            'Goat anti mouse Igg2b A647': '1/400',
+            'Goat anti mouse broad A647': '1/400',
+            'Goat anti rabbit A647': '1/400'
+            }
+
+        for antibody, dilution in self.antibodies.items():
+            var = tk.IntVar()
+            chk = tk.Checkbutton(frame, text=f"{antibody} ({dilution})", variable=var)
+            chk.pack(anchor='w')
+            self.antibody_vars[antibody] = var
+    def position_window_bottom_right(self, window, width, height):
+        screen_width = self.root.winfo_screenwidth()
+        screen_height = self.root.winfo_screenheight()
+        x = screen_width - width
+        y = screen_height - height
+        window.geometry(f'{width}x{height}+{x}+{y}')
+    def on_pbtn_done(self):
+        if self.current_treatment_group >= len(self.treatment_groups):
+            self.show_final_message()
+            return
+        num_groups = self.num_groups
+        num_slides = self.treatment_groups[self.current_treatment_group]
+        tk.messagebox.showinfo("Block Complete",
+                               f"Block complete. Add 300uL Master mix {self.current_treatment_group + 1} to each slide in treatment group {self.current_treatment_group + 1}")
+        self.current_treatment_group += 1
+    def calculate_master_mix(self):
+        if self.current_treatment_group >= len(self.treatment_groups):
+            tk.messagebox.showinfo("Complete", "All treatment groups have been processed.")
+            return
+
+        selected_antibodies = [a for a, v in self.antibody_vars.items() if v.get() == 1]
+        if not selected_antibodies:
+            tk.messagebox.showinfo("No Selection", "Please select at least one antibody.")
+            return
+
+        num_slides = self.treatment_groups[self.current_treatment_group]
+        total_volume = 550 * num_slides  # Total master mix volume
+        total_antibody_volumes = {}
+
+        for antibody in selected_antibodies:
+            dilution_fraction = eval(self.antibodies[antibody].replace('/', '.0/'))
+            antibody_volume = total_volume * dilution_fraction
+            total_antibody_volumes[antibody] = antibody_volume
+
+        pbtn_volume = total_volume - sum(total_antibody_volumes.values())
+
+
+        checklist_window = tk.Toplevel(self.root)
+        checklist_window.title(f"Master Mix Checklist for Treatment Group {self.current_treatment_group + 1}")
+
+
+        self.add_checklist_items(checklist_window, total_antibody_volumes, pbtn_volume)
+
+        self.current_treatment_group += 1
+
+    def add_checklist_items(self, window, antibody_volumes, pbtn_volume):
+        for antibody, volume in antibody_volumes.items():
+            self.add_checklist_item(window, f"{antibody}: {volume:.2f} uL")
+
+        self.add_checklist_item(window, f"PBTN: {pbtn_volume:.2f} uL")
+        self.checklist_total_count = len(antibody_volumes) + 1  # +1 for PBTN
+        self.checklist_completed_count = 0
+    def add_checklist_items(self, window, antibody_volumes, pbtn_volume):
+        for antibody, volume in antibody_volumes.items():
+            self.add_checklist_item(window, f"{antibody}: {volume:.2f} uL")
+
+        self.add_checklist_item(window, f"PBTN: {pbtn_volume:.2f} uL")
+        self.checklist_total_count = len(antibody_volumes) + 1  # +1 for PBTN
+        self.checklist_completed_count = 0
+
+    def add_checklist_item(self, window, text):
+        frame = tk.Frame(window)
+        frame.pack(fill='x', padx=5, pady=5)
+
+        label = tk.Label(frame, text=text)
+        label.pack(side='left')
+
+        done_button = tk.Button(frame, text="Done", command=lambda t=text: self.mark_done(t))
+        done_button.pack(side='right')
+    def mark_done(self, text):
+        self.log_action(f"Added to Master Mix: {text}")
+        self.checklist_completed_count += 1
+
+        if self.checklist_completed_count == self.checklist_total_count:
+            if self.current_treatment_group == len(self.treatment_groups):
+                # Last treatment group
+                tk.messagebox.showinfo("Master Mix Complete", "All master mixes complete and logged in Action Log. Wait for block to finish and add master mixes as instructed. Keep mixes on ice")
+                self.log_action(f"Master mix {self.current_treatment_group} complete")
+                self.log_action("Master Mix Construction Completed")
+            else:
+
+                tk.messagebox.showinfo("Master Mix Complete", f"Master mix {self.current_treatment_group} complete, select next treatment group antibodies.")
+                self.log_action(f"Master mix {self.current_treatment_group} complete")
+
+            self.checklist_completed_count = 0
+            self.checklist_total_count = 0
+
+    def show_final_message(self):
+        final_window = tk.Toplevel(self.root)
+        final_window.geometry("400x100")
+        final_window.title("Choose Incubation Method")
+
+        # Create labels and buttons for the options
+        label = tk.Label(final_window, text="Choose the incubation method:")
+        label.pack()
+
+        button_1_hour = tk.Button(final_window, text="1 Hour at Room Temperature", command=self.start_one_hour_timer)
+        button_1_hour.pack(pady=10)
+
+        button_24_hours = tk.Button(final_window, text="24 Hours at 4°C", command=self.incubate_24_hours)
+        button_24_hours.pack(pady=10)
+
+    def start_one_hour_timer(self):
+        secinc_window = tk.Toplevel(self.root)
+        secinc_window.geometry("400x100")
+        secinc_window.title("1 Hour Secondary Incubation")
+        message_label = tk.Label(secinc_window, text="Add 500uL of secondary master mix to each slide",
+                                 font=("Helvetica", 12))
+        message_label.pack(pady=10)
+
+        # Set up the timer label in the new window
+        self.timer_label = tk.Label(secinc_window, text="01:01:00", font=("Helvetica", 18))
+        self.timer_label.pack()
+
+        # Add a "Done" button
+        done_button = tk.Button(secinc_window, text="Done", command=self.save_action_log_and_exit)
+        done_button.pack(pady=10)
+
+        if self.timer_id is not None:
+            self.root.after_cancel(self.timer_id)
+
+        # Update the timer every second
+        self.update_timer(3660)  # 3600 seconds for 1 hour
+
+        # After 1 hour, execute the save_action log and exit
+        self.root.after(3660 * 1000, self.save_action_log_and_exit)
+        self.log_action("1 Hour Incubation")
+
+    def incubate_24_hours(self):
+        tk.messagebox.showinfo("Incubation at 4°C", "Add 500uL Master mix to each slide and place your slides at 4 degrees Celsius for 24 hours.")
+        self.log_action("Secondary incubation initiated")
+        self.save_action_log_and_exit()
+    def save_action_log(self):
+        file_path = fd.asksaveasfilename(defaultextension=".txt",
+                                         filetypes=[("Text files", "*.txt"), ("All files", "*.*")])
+        if file_path:
+            with open(file_path, "w") as file:
+                log_content = self.log_text.get("1.0", tk.END)
+                file.write(log_content)
+            tk.messagebox.showinfo("Log Saved", "Action log has been saved successfully.")
+
+        tk.messagebox.showinfo("Final Day Protocol", "Exit the app and continue with the Final Day Protocol.")
+
+        self.root.destroy()
+    def save_action_log_and_exit(self):
+        self.save_action_log()
+        root.destroy()
+class Final_Day_Protocol:
+    def __init__(self, root, log_text):
+        self.root = root
+        self.log_text = log_text
+        self.experiment_name = ""
+        self.blocking_agent = ""
+        self.num_groups = 0
+        self.num_slides_per_group = 0
+        self.total_slides = 0
+        self.current_step = [0]
+        self.timer_label = None
+        self.timer_id = None
+        self.message = None
+        self.continue_button = None
+        self.start_button = None
+        self.done_button = None
+        self.treatment_groups = []
+        self.current_treatment_group = 0
+        self.checklist_completed_count = 0
+        self.checklist_total_count = 0
+    '''
+    Set initial parameters of the protocol including experiment name, treatment groups and slides
+    per treatment group
+    '''
+    def set_initial_parameters(self):
+        self.experiment_name = simpledialog.askstring("Input", "Enter Experiment Name:")
+        if self.experiment_name is None:
+            return
+
+        self.num_groups = simpledialog.askinteger("Input", "Enter Number of Treatment Groups:")
+        if self.num_groups is None:
+            return
+
+        self.total_slides = 0
+        self.treatment_groups = []
+        slides_info = ""
+        for group in range(1, self.num_groups + 1):
+            num_slides = simpledialog.askinteger(f"Input for Treatment Group {group}",
+                                                 f"Enter Number of Slides in Group {group}:")
+            if num_slides is None:
+                return
+            self.treatment_groups.append(num_slides)
+
+            self.num_slides_per_group = num_slides
+            self.total_slides += num_slides
+            slides_info += f"Group {group}: {num_slides} slides; "
+        log_message = f"Day 3 Settings Initiated - Experiment: {self.experiment_name}, Treatment Groups: {self.num_groups}, Slides Info: {slides_info.rstrip('; ')}"
+        self.log_action(log_message)
+        self.start_button = tk.Button(self.root, text="Start Protocol", command=self.tri_protocol)
+        self.start_button.pack()
+    def tri_protocol(self):
+        self.remove_start_button()
+        self.log_action("Final step protocol initiated")
+        if not self.done_button:
+            self.done_button = tk.Button(self.root, text="Done", command=self.reset_timer_and_progress)
+            self.done_button.pack()
+
+        if self.current_step[0] == 0:
+            self.current_step[0] = 1
+            self.message.config(text="Wash #1")
+            self.message.pack()
+
+            if self.timer_label is not None:
+                self.timer_label.destroy()
+
+            self.timer_label = tk.Label(self.root, font=('Helvetica', 18))
+            self.timer_label.pack()
+
+            self.update_timer(900)
+
+        elif self.current_step[0] == 1:
+            self.current_step[0] = 2
+            self.message.config(text="You are now in the PBT-N step.")
+            if self.continue_button:
+                self.continue_button.destroy()
+
+        elif self.current_step[0] == 2:
+            self.message.config(text="Protocol is complete.")
+    def log_action(self, action):
+        current_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        self.log_text.insert(tk.END, f"{current_time}: {action}\n")
+        self.log_text.yview(tk.END)
+
+    def remove_done_button(self):
+        if self.done_button:
+            self.done_button.destroy()
+            self.done_button = None
+
+    def update_timer(self, count):
+        minutes, seconds = divmod(count, 60)
+        self.timer_label.config(text="{:02d}:{:02d}".format(minutes, seconds))
+
+        if count < 30:
+            self.timer_label.config(fg='red')
+        else:
+            self.timer_label.config(fg='black')
+
+        if count > 0:
+            self.timer_id = self.root.after(1000, self.update_timer, count - 1)
+        else:
+            pass
+
+    def reset_timer_and_progress(self):
+        self.log_action(f"Wash #{self.current_step[0]} complete")
+        if self.current_step[0] < 3:
+            self.current_step[0] += 1
+            self.message.config(text="Wash #{}".format(self.current_step[0]))
+
+            if self.timer_label is not None:
+                self.timer_label.destroy()
+
+            if self.timer_id is not None:
+                self.root.after_cancel(self.timer_id)
+
+            self.timer_label = tk.Label(self.root, font=('Helvetica', 18))
+            self.timer_label.pack()
+
+            self.update_timer(900)
+        else:
+            self.message.config(text="Congratulations! Add 500uL PBTN per slide.")
+            if self.continue_button:
+                self.continue_button.destroy()
+            self.continue_button = tk.Button(self.root, text="PBT-N added", command=self.continue_to_pbtn)
+            self.continue_button.pack()
+            self.remove_done_button()
+            self.log_action(f"Washes complete. PBTN block prompted")
+
+    def remove_start_button(self):
+        if self.start_button:
+            self.start_button.destroy()
+            self.start_button = None
+
+if __name__ == "__main__":
+    root = tk.Tk()
+    app = LabProtocolApp(root)
+    root.mainloop()
