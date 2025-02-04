@@ -1,0 +1,10 @@
+def temperature(sequence):
+    n = len(sequence)
+    temp = 0
+    for i in range (n):
+        if (sequence[i] == "A" or sequence[i] == "T"):
+            temp = temp +2
+        if (sequence[i] == "C" or sequence[i] == "G"):
+            temp = temp + 4
+    return temp
+print(temperature(input("What is your sequence?")))
