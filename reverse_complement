@@ -1,0 +1,19 @@
+def reverse_complement(sequence):
+    x = 0
+    m = 0
+    new_seq = ""
+    n = len(sequence)
+    for i in range (n):
+        x = sequence[n-i-1]
+        if (x == "C"):
+            m = "G"
+        elif (x == "G"):
+            m = "C"
+        elif (x == "T"):
+            m = "A"
+        else:
+            m = "T"
+        new_seq += m
+    return new_seq
+
+print(reverse_complement(input("What is your sequence?")) + " is the RC")
